@@ -54,7 +54,7 @@ def decode_der_signature_and_pubkey(script_asm, witness):
             for t in tokens:
                 if 140 <= len(t) <= 146:
                     sig_hex = t
-                elif len(t) in: # FIXED: Added valid hex string lengths
+                elif len(t) in (66, 130): # FIXED: Numbers added here
                     pubkey_hex = t
                     
         # Scenario B: SegWit Witness vector stack
@@ -62,7 +62,7 @@ def decode_der_signature_and_pubkey(script_asm, witness):
             for item in witness:
                 if 140 <= len(item) <= 146:
                     sig_hex = item
-                elif len(item) in: # FIXED: Added valid hex string lengths
+                elif len(item) in (66, 130): # FIXED: Numbers added here
                     pubkey_hex = item
 
         if not sig_hex:
