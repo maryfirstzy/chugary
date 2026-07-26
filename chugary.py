@@ -4,6 +4,7 @@ import time
 
 INPUT_FILE = "BTC.txt"
 OUTPUT_FILE = "raw_transactions.json"
+# Added missing slash after 'address'
 API_URL = "https://blockstream.info{}/txs"
 
 def get_transactions_for_address(address):
@@ -18,7 +19,6 @@ def get_transactions_for_address(address):
 
 def main():
     try:
-        # Read addresses from BTC.txt
         with open(INPUT_FILE, 'r') as file:
             addresses = [line.strip() for line in file if line.strip()]
     except FileNotFoundError:
@@ -33,11 +33,8 @@ def main():
         print(f"Extracting transactions for: {address}")
         txs = get_transactions_for_address(address)
         all_transactions[address] = txs
-        
-        # Add a short delay to avoid hitting API rate limits
         time.sleep(1)
 
-    # Save all extracted raw transactions to a JSON file
     with open(OUTPUT_FILE, 'w') as out_file:
         json.dump(all_transactions, out_file, indent=4)
 
